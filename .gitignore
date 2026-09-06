@@ -1,0 +1,20 @@
+# -----------------------------------------------------------------------------
+# Aurelia Bank — Git ignore rules
+# -----------------------------------------------------------------------------
+
+# Local / deployment configuration containing real credentials — NEVER commit.
+/config/config.local.php
+
+# Logs
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Dependency dirs (not used in Phase 1, reserved)
+/vendor/
+/node_modules/

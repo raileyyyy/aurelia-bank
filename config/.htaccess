@@ -1,0 +1,9 @@
+# Deny all direct web access to this directory.
+# These files are included by the application via the filesystem, never served.
+Require all denied
+
+# Legacy Apache 2.2 fallback
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
