@@ -23,6 +23,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/audit.php';
+require_once __DIR__ . '/../includes/csrf.php';       // token helpers (hardened path)
+require_once __DIR__ . '/../includes/security.php';   // lab toggle: vuln_enabled('csrf')
 
 require_role('customer');
 
@@ -45,17 +47,45 @@ $email    = $record['email'];
 $phone    = (string) ($record['phone'] ?? '');
 $address  = (string) ($record['address'] ?? '');
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $form = (string) ($_POST['form'] ?? '');
+// #############################################################################
+// # CONTROLLED VULNERABILITY (Phase 7) — CSRF demonstration point.            #
+// #############################################################################
+// The "personal details" update is the designated CSRF target (a harmless,
+// non-financial, non-password change — as required by the roadmap).
+//
+//   HARDENED (default): the update requires a valid per-session CSRF token and
+//   is accepted over POST only.
+//
+//   VULNERABLE (VULN_CSRF armed): the token is neither issued nor checked, and
+//   the endpoint also accepts GET. Accepting a state-changing GET is what lets a
+//   cross-site *top-level navigation* drive the change while still carrying the
+//   SameSite=Lax session cookie — the reliable way to demonstrate CSRF over the
+//   lab's plain-HTTP setup. See docs/ATTACK-SIMULATION.md for the reasoning.
+$isVulnCsrf = vuln_enabled('csrf');
+$method     = $_SERVER['REQUEST_METHOD'];
+
+$isWriteRequest = ($method === 'POST')
+    || ($isVulnCsrf && $method === 'GET' && isset($_GET['form']));
+
+if ($isWriteRequest) {
+    // In the vulnerable build, read from GET or POST indiscriminately (naive).
+    $src  = $isVulnCsrf ? $_REQUEST : $_POST;
+    $form = (string) ($src['form'] ?? '');
 
     // -------------------------------------------------------------------------
     // 1. Personal details
     // -------------------------------------------------------------------------
     if ($form === 'profile') {
-        $fullName = trim((string) ($_POST['full_name'] ?? ''));
-        $email    = trim((string) ($_POST['email'] ?? ''));
-        $phone    = trim((string) ($_POST['phone'] ?? ''));
-        $address  = trim((string) ($_POST['address'] ?? ''));
+        $fullName = trim((string) ($src['full_name'] ?? ''));
+        $email    = trim((string) ($src['email'] ?? ''));
+        $phone    = trim((string) ($src['phone'] ?? ''));
+        $address  = trim((string) ($src['address'] ?? ''));
+
+        // HARDENED: reject the request unless it carries this session's token.
+        // VULNERABLE: this check is skipped entirely.
+        if (!$isVulnCsrf && !csrf_verify()) {
+            $profileErrors['form'] = 'We could not verify that request came from you. Please reload the page and try again.';
+        }
 
         if ($fullName === '' || mb_strlen($fullName) < 2 || mb_strlen($fullName) > 120) {
             $profileErrors['full_name'] = 'Please enter your full name (2–120 characters).';
@@ -111,6 +141,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new     = (string) ($_POST['new_password'] ?? '');
         $confirm = (string) ($_POST['confirm_password'] ?? '');
 
+        // The password change is NOT the CSRF demonstration target, so it keeps
+        // its token protection at all times (roadmap: never use a password
+        // change as the CSRF target).
+        if (!csrf_verify()) {
+            $passwordErrors['form'] = 'We could not verify that request came from you. Please reload the page and try again.';
+        }
+
         if ($current === '' || !password_verify($current, $record['password_hash'])) {
             $passwordErrors['current_password'] = 'Your current password is incorrect.';
         }
@@ -158,8 +195,15 @@ require __DIR__ . '/../includes/header.php';
             <div class="card">
                 <h2 class="card__title mt-0">Personal details</h2>
 
+                <?php if (isset($profileErrors['form'])): ?>
+                    <div class="alert alert--error" role="alert"><?= e($profileErrors['form']) ?></div>
+                <?php endif; ?>
+
                 <form method="post" action="<?= e(base_url('customer/profile.php')) ?>" novalidate data-validate>
                     <input type="hidden" name="form" value="profile">
+                    <?php if (!$isVulnCsrf): ?>
+                        <?= csrf_field() /* HARDENED: token present. VULNERABLE build omits it. */ ?>
+                    <?php endif; ?>
 
                     <div class="form-group">
                         <label class="label" for="username">Username</label>
@@ -213,8 +257,13 @@ require __DIR__ . '/../includes/header.php';
             <div class="card">
                 <h2 class="card__title mt-0">Change password</h2>
 
+                <?php if (isset($passwordErrors['form'])): ?>
+                    <div class="alert alert--error" role="alert"><?= e($passwordErrors['form']) ?></div>
+                <?php endif; ?>
+
                 <form method="post" action="<?= e(base_url('customer/profile.php')) ?>" novalidate data-validate>
                     <input type="hidden" name="form" value="password">
+                    <?= csrf_field() /* password change is always CSRF-protected */ ?>
 
                     <div class="form-group">
                         <label class="label" for="current_password">Current password</label>
