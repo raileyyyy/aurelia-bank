@@ -329,6 +329,40 @@ isolated** so they can be toggled/reverted, and each has a hardened counterpart.
 
 ---
 
+## Attack simulation (Phases 7–8)
+
+The three demonstration vulnerabilities are implemented as **toggleable branches
+of the real functionality** — there is no separate "security lab" page. The app
+is **secure by default**; each vulnerability is armed with one config flag:
+
+| Flag | Target | On (armed) vs Off (default) |
+|------|--------|-----------------------------|
+| `VULN_BRUTE_FORCE` | login (`auth/login.php` → `authenticate()`) | no rate limiting vs. 5-fail / 15-min lockout |
+| `VULN_SQLI` | transaction search (`includes/banking.php`) | raw-concatenated `q` vs. parameterised query |
+| `VULN_CSRF` | profile update (`customer/profile.php`) | no token, accepts GET vs. token required, POST-only |
+
+**Arming the lab (isolated VM only):**
+
+```bash
+cp config/config.lab.sample.php config/config.local.php   # flags pre-set to true
+# enable ONE flag at a time for a clean run; set back to false to remediate
+```
+
+**Full step-by-step Kali Linux procedure** (VirtualBox setup, Hydra / sqlmap /
+CSRF PoC, evidence, remediation, retest) is in:
+
+- [`docs/ATTACK-SIMULATION.md`](docs/ATTACK-SIMULATION.md) — the main guide
+- `docs/csrf-poc.html` / `docs/csrf-poc-post.html` — CSRF proof-of-concept pages
+- `docs/demo-wordlist.txt` — small password list for the brute-force demo
+
+New supporting file: `includes/security.php` (lab toggles + the hardened
+brute-force throttle used when `VULN_BRUTE_FORCE` is off).
+
+> ⚠️ Enable the flags **only** inside a private VirtualBox network with no
+> internet route, against these fictional accounts. Never on a public host.
+
+---
+
 ## Development roadmap
 
 | Phase | Focus | Status |
@@ -339,9 +373,9 @@ isolated** so they can be toggled/reverted, and each has a hardened counterpart.
 | 4 | Transaction system (history, search, filter, pagination, details) | ✅ Done |
 | 5 | Profile & account settings (view/edit, validation) | ✅ Done |
 | 6 | Administrator area (customers, accounts, transactions) | ✅ Done |
-| 7 | Controlled vulnerabilities (Brute Force / SQLi / CSRF) | ⏳ Next |
-| 8 | Security testing documentation | — |
-| 9 | Security hardening (remediated versions) | — |
+| 7 | Controlled vulnerabilities (Brute Force / SQLi / CSRF) | ✅ Done (toggleable) |
+| 8 | Security testing documentation (`docs/ATTACK-SIMULATION.md`) | ✅ Done |
+| 9 | Security hardening (remediated versions = flags off) | ✅ Built in |
 | 10 | Final functional + security testing | — |
 | 11 | Hostinger deployment | — |
 
