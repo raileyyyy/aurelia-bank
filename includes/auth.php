@@ -25,6 +25,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/security.php';   // lab toggles + brute-force throttle
 
 /**
  * Return the currently authenticated user as a small session snapshot, or null.
@@ -86,6 +87,25 @@ function find_user_by_username(string $username): ?array
  */
 function authenticate(string $username, string $password, ?string $requireRole = null): array
 {
+    // -------------------------------------------------------------------------
+    // Brute-force protection (HARDENED path).
+    //   - Disarmed by default → the sliding-window lockout below is enforced.
+    //   - When VULN_BRUTE_FORCE is armed for the demonstration, login_is_locked_out()
+    //     always returns false, so unlimited rapid guesses are permitted. This is
+    //     the ONLY behavioural difference between the vulnerable and hardened
+    //     login, which keeps the before/after comparison clean.
+    // -------------------------------------------------------------------------
+    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+    if (login_is_locked_out($username, $ip)) {
+        // Still record the blocked attempt so the audit trail (and any Hydra
+        // run against the hardened build) shows the wall being hit.
+        record_login_attempt($username, false);
+        return [
+            'ok'    => false,
+            'error' => 'Too many failed attempts. Please wait a few minutes and try again.',
+        ];
+    }
+
     $user = find_user_by_username($username);
 
     // Always run a hash check (a dummy when no user exists) so response timing
