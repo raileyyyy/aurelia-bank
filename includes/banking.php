@@ -21,6 +21,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/security.php';   // lab toggle: vuln_enabled('sqli')
 
 // -----------------------------------------------------------------------------
 // Accounts
@@ -180,15 +181,134 @@ function build_transaction_filters(array $f): array
 }
 
 /**
+ * ############################################################################
+ * # CONTROLLED VULNERABILITY (Phase 7) — SQL INJECTION demonstration point.  #
+ * ############################################################################
+ *
+ * Build the WHERE clause for the transaction search using UNSAFE string
+ * concatenation of the free-text term. This is the DELIBERATELY VULNERABLE
+ * counterpart to build_transaction_filters(); it runs only when VULN_SQLI is
+ * armed inside the isolated test VM.
+ *
+ * What is (and is not) unsafe here, on purpose:
+ *   - The free-text `q` value is concatenated raw → this is the injectable
+ *     parameter the demonstration targets.
+ *   - The user-scope, account, type, category and date filters are still built
+ *     from trusted/validated values (the page constrains type to credit|debit,
+ *     category to a fixed list, and dates via is_valid_date()), so the ONLY
+ *     injection point is `q` — exactly as the roadmap requires ("limited to the
+ *     transaction-search functionality").
+ *   - The query remains a single SELECT. PDO's MySQL driver does not permit
+ *     stacked statements here, so destructive payloads (`; DROP ...`) cannot
+ *     run — read-only extraction (UNION / boolean / error / time based) is the
+ *     scope of the demonstration, on fictional data only.
+ *
+ * NEVER write application code like this outside the lab.
+ *
+ * @param array<string,mixed> $f
+ */
+function build_transaction_where_vulnerable(array $f): string
+{
+    $parts = [];
+
+    // Trusted numeric scopes — cast to int (safe).
+    if (!empty($f['user_id'])) {
+        $parts[] = 'a.user_id = ' . (int) $f['user_id'];
+    }
+    if (!empty($f['account_id'])) {
+        $parts[] = 't.account_id = ' . (int) $f['account_id'];
+    }
+
+    // >>> INJECTION POINT: raw, unescaped concatenation of user input. <<<
+    $q = (string) ($f['q'] ?? '');
+    if ($q !== '') {
+        $parts[] = "(t.description LIKE '%$q%' "
+                 . "OR t.counterparty LIKE '%$q%' "
+                 . "OR t.reference LIKE '%$q%')";
+    }
+
+    // Remaining filters come from validated/whitelisted values (safe).
+    $type = (string) ($f['type'] ?? '');
+    if ($type === 'credit' || $type === 'debit') {
+        $parts[] = "t.type = '" . $type . "'";
+    }
+    $category = trim((string) ($f['category'] ?? ''));
+    if ($category !== '') {
+        $parts[] = "t.category = " . db()->quote($category);
+    }
+    $from = (string) ($f['date_from'] ?? '');
+    if ($from !== '' && is_valid_date($from)) {
+        $parts[] = "t.transacted_at >= '" . $from . " 00:00:00'";
+    }
+    $to = (string) ($f['date_to'] ?? '');
+    if ($to !== '' && is_valid_date($to)) {
+        $parts[] = "t.transacted_at <= '" . $to . " 23:59:59'";
+    }
+
+    return $parts ? ('WHERE ' . implode(' AND ', $parts)) : '';
+}
+
+/**
  * Search / filter transactions with pagination.
  *
  * Recognised filter keys: user_id, account_id, q, type, category,
  * date_from, date_to, limit, offset.
  *
+ * When VULN_SQLI is armed this delegates to the deliberately unsafe query
+ * builder above; otherwise it uses the safe, fully-parameterised path.
+ *
  * @return array{rows: array<int,array<string,mixed>>, total: int}
  */
 function search_transactions(array $f): array
 {
+    // -------------------------------------------------------------------------
+    // VULNERABLE PATH — string-concatenated SQL, executed without binding.
+    // -------------------------------------------------------------------------
+    if (vuln_enabled('sqli')) {
+        $whereSql = build_transaction_where_vulnerable($f);
+        $limit    = max(1, (int) ($f['limit'] ?? 15));
+        $offset   = max(0, (int) ($f['offset'] ?? 0));
+
+        // The main data query is intentionally run raw so UNION / error / boolean
+        // / time-based payloads behave exactly as a tester expects. There are 15
+        // selected columns — a UNION payload must match that count. The text
+        // columns that render in the results table are: reference, description
+        // and counterparty (good places to surface extracted values).
+        $dataSql =
+            "SELECT t.id, t.reference, t.type, t.category, t.amount, t.balance_after,
+                    t.description, t.counterparty, t.status, t.transacted_at,
+                    a.account_number, a.currency, a.account_type,
+                    u.full_name AS owner_name, u.id AS owner_id
+               FROM transactions t
+               JOIN accounts a ON a.id = t.account_id
+               JOIN users u    ON u.id = a.user_id
+             $whereSql
+              ORDER BY t.transacted_at DESC, t.id DESC
+              LIMIT $limit OFFSET $offset";
+
+        $rows = db()->query($dataSql)->fetchAll();
+
+        // Best-effort count. A column-count-mismatched UNION payload makes the
+        // COUNT(*) query throw; fall back to the number of rows returned so the
+        // page still renders the injected data.
+        try {
+            $countSql =
+                "SELECT COUNT(*)
+                   FROM transactions t
+                   JOIN accounts a ON a.id = t.account_id
+                   JOIN users u    ON u.id = a.user_id
+                 $whereSql";
+            $total = (int) db()->query($countSql)->fetchColumn();
+        } catch (Throwable $e) {
+            $total = count($rows);
+        }
+
+        return ['rows' => $rows, 'total' => $total];
+    }
+
+    // -------------------------------------------------------------------------
+    // SAFE PATH (default) — parameterised query, nothing concatenated.
+    // -------------------------------------------------------------------------
     [$whereSql, $params] = build_transaction_filters($f);
 
     // Total (for pagination) with the same filters.
