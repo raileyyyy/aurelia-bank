@@ -30,3 +30,15 @@ define('DB_PASS', '');             // Hostinger: the DB user's password
 // Hostinger root deployment: '' (empty string)
 // -----------------------------------------------------------------------------
 // define('APP_BASE_URL', '/aurelia-bank');
+
+// -----------------------------------------------------------------------------
+// CONTROLLED VULNERABILITY TOGGLES  (academic Phase 7)
+// -----------------------------------------------------------------------------
+// Leave ALL of these false for a normal, secure bank. Enable a flag ONLY inside
+// your isolated VirtualBox test VM to arm that one demonstration, run the
+// attack, then set it back to false to "remediate". Never enable on a public
+// or production host. See docs/ATTACK-SIMULATION.md for the full procedure.
+//
+// define('VULN_BRUTE_FORCE', false);  // true → login has NO rate limiting
+// define('VULN_SQLI',        false);  // true → transaction search is injectable
+// define('VULN_CSRF',        false);  // true → profile update has NO CSRF token
