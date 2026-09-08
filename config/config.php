@@ -60,6 +60,30 @@ define('SESSION_NAME', 'AURELIA_SESSION');
 // define('APP_BASE_URL', '/aurelia-bank');
 
 // -----------------------------------------------------------------------------
+// Controlled vulnerability toggles (academic Phase 7 — SECURE BY DEFAULT)
+// -----------------------------------------------------------------------------
+// Each flag arms ONE clearly-isolated demonstration vulnerability in the
+// existing functionality. They are false unless explicitly enabled, so the
+// production/normal build is safe. Enable them ONLY inside your isolated
+// VirtualBox test VM, either here via config.local.php:
+//
+//     define('VULN_BRUTE_FORCE', true);   // login: no rate limiting
+//     define('VULN_SQLI',        true);   // transaction search: unsafe query
+//     define('VULN_CSRF',        true);   // profile update: no CSRF token
+//
+// ...or per request via an environment variable (VULN_SQLI=1, etc.).
+// To revert a demonstration, set the flag back to false — no code changes.
+if (!defined('VULN_BRUTE_FORCE')) {
+    define('VULN_BRUTE_FORCE', getenv('VULN_BRUTE_FORCE') === '1');
+}
+if (!defined('VULN_SQLI')) {
+    define('VULN_SQLI', getenv('VULN_SQLI') === '1');
+}
+if (!defined('VULN_CSRF')) {
+    define('VULN_CSRF', getenv('VULN_CSRF') === '1');
+}
+
+// -----------------------------------------------------------------------------
 // Error handling strategy (based on environment)
 // -----------------------------------------------------------------------------
 error_reporting(E_ALL);
