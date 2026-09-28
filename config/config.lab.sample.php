@@ -36,5 +36,5 @@ define('APP_BASE_URL', '/aurelia-bank');
 // --- Controlled vulnerability toggles ---------------------------------------
 // Enable one at a time for a clean, isolated demonstration.
 define('VULN_BRUTE_FORCE', true);   // Attack 1 — login brute force
-define('VULN_SQLI',        true);   // Attack 2 — SQL injection (transaction search)
+define('VULN_SQLI',        false);   // Attack 2 — SQL injection (transaction search)
 define('VULN_CSRF',        true);   // Attack 3 — CSRF (profile update)
