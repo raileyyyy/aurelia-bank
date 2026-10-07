@@ -137,18 +137,17 @@ function build_transaction_filters(array $f): array
         $params[':account_id'] = (int) $f['account_id'];
     }
 
-    // --- Free-text search (future SQL-injection demonstration point) ---------
-    // Implemented safely with a single bound parameter. The vulnerable variant
-    // for the security phase will replace THIS clause only, in isolation.
+    // --- Free-text search — Phase 7 SQL-injection demonstration point --------
+    // INTENTIONALLY VULNERABLE: the search term is concatenated directly into
+    // the query text instead of being bound as a parameter. This is the ONLY
+    // clause changed for the demo; every other filter in this function (and
+    // every other query in the app) still uses real bound parameters. See
+    // README "Security notes" / plan.md Phase 7. Do not copy this pattern
+    // elsewhere — restore the bound-parameter version (git history, the
+    // commit before this one) once the exercise is done.
     $q = trim((string) ($f['q'] ?? ''));
     if ($q !== '') {
-        // Native prepared statements (EMULATE_PREPARES = false) require one
-        // placeholder per marker, so the same term is bound three times.
-        $where[] = '(t.description LIKE :q_desc OR t.counterparty LIKE :q_cp OR t.reference LIKE :q_ref)';
-        $like = '%' . $q . '%';
-        $params[':q_desc'] = $like;
-        $params[':q_cp']   = $like;
-        $params[':q_ref']  = $like;
+        $where[] = "(t.description LIKE '%$q%' OR t.counterparty LIKE '%$q%' OR t.reference LIKE '%$q%')";
     }
 
     $type = (string) ($f['type'] ?? '');

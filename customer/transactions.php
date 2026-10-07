@@ -5,10 +5,11 @@
  * Transaction history with search, filtering (type / category / date range),
  * optional per-account scoping, and pagination.
  *
- * The free-text "search" box here is the endpoint the later SQL-injection
- * demonstration targets. In this normal build it is implemented safely: the
- * query is always scoped to the signed-in user and every value is passed as a
- * bound parameter (see includes/banking.php :: search_transactions()).
+ * The free-text "search" box here is the Phase 7 SQL-injection demonstration
+ * point: see includes/banking.php :: build_transaction_filters(), where the
+ * `q` term is intentionally concatenated into the query instead of bound.
+ * Every other filter on this page (and the user_id scope itself) remains a
+ * bound parameter — the injection is isolated to that one clause.
  */
 
 declare(strict_types=1);
