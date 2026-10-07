@@ -290,9 +290,24 @@ status-management control, and a bank-wide transaction browser.
 - **Authorization in the query, not the UI.** Every customer read is scoped by
   `user_id` (`includes/banking.php`), so requesting another customer's account
   or transaction id returns "not found" rather than leaking data.
-- **Prepared statements throughout**, including the transaction search — which
-  is the *designated SQL-injection demonstration point* for Phase 7, written
-  safely here so the vulnerable variant can be introduced in isolation.
+- **Prepared statements almost everywhere.** The one deliberate exception is
+  the transaction search's free-text term (`customer/transactions.php` →
+  `build_transaction_filters()` in `includes/banking.php`), which is the
+  *Phase 7 SQL-injection demonstration point*: that single clause concatenates
+  the search term into the query instead of binding it. Every other filter,
+  and every other query in the app, still uses bound parameters.
+- **Brute force is intentionally unthrottled.** `authenticate()` records every
+  attempt to `login_attempts` (audit trail) but nothing currently checks that
+  table — there is no lockout or rate limit on either login form. This is the
+  Phase 7 brute-force demonstration point.
+- **Session cookie `Secure` flag is intentionally disabled** (`includes/session.php`)
+  — hard-coded `false` instead of auto-detected from the connection, so the
+  session cookie also travels over plain HTTP. This is the Phase 7
+  man-in-the-middle demonstration point: anyone intercepting that traffic
+  (sslstrip-style MITM, or sniffing the local/LAN copy) can read the cookie and
+  hijack the session. Note the `.htaccess` security headers (HSTS included)
+  only apply on Apache/Hostinger — they are not sent at all on the Vercel
+  deployment, which has no equivalent config in this repo.
 - **CSRF: money movement is protected; the profile update is not (by design).**
   Deposit/withdraw/transfer carry a CSRF token from the outset because they are
   financial actions. The profile-settings update is deliberately left *without*
@@ -339,7 +354,7 @@ isolated** so they can be toggled/reverted, and each has a hardened counterpart.
 | 4 | Transaction system (history, search, filter, pagination, details) | ✅ Done |
 | 5 | Profile & account settings (view/edit, validation) | ✅ Done |
 | 6 | Administrator area (customers, accounts, transactions) | ✅ Done |
-| 7 | Controlled vulnerabilities (Brute Force / SQLi / CSRF) | ⏳ Next |
+| 7 | Controlled vulnerabilities (Brute Force / SQLi / CSRF) | ✅ Done |
 | 8 | Security testing documentation | — |
 | 9 | Security hardening (remediated versions) | — |
 | 10 | Final functional + security testing | — |
@@ -349,5 +364,11 @@ isolated** so they can be toggled/reverted, and each has a hardened counterpart.
 
 ## License / use
 
-Academic use only. Fictional data. Do not deploy the vulnerable versions to a
-publicly reachable environment.
+Academic use only — a classroom pentesting exercise against test/fictional
+data only. This app, including the public Vercel deployment, intentionally
+contains the Phase 7 vulnerabilities described above (unthrottled login,
+concatenated SQL in the transaction search, non-Secure session cookie). Never
+point it at real accounts, real personal data, or real money, and never reuse
+this code's login, search-filter, or session-cookie logic in a non-academic
+project without first restoring the bound-parameter / rate-limiting /
+Secure-cookie versions.
