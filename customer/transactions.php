@@ -26,7 +26,7 @@ $accounts   = get_accounts_for_user($userId);
 $categories = get_transaction_categories($userId);
 
 // --- Read & normalise filters from the query string --------------------------
-$q        = trim((string) ($_GET['q'] ?? ''));
+$q        = (string) ($_GET['q'] ?? ''); // raw — not trimmed, see banking.php build_transaction_filters()
 $type     = (string) ($_GET['type'] ?? '');
 $category = trim((string) ($_GET['category'] ?? ''));
 $dateFrom = trim((string) ($_GET['date_from'] ?? ''));

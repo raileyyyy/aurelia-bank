@@ -145,9 +145,26 @@ function build_transaction_filters(array $f): array
     // README "Security notes" / plan.md Phase 7. Do not copy this pattern
     // elsewhere — restore the bound-parameter version (git history, the
     // commit before this one) once the exercise is done.
-    $q = trim((string) ($f['q'] ?? ''));
+    //
+    // Deliberately a single unparenthesised clause (not an OR-group across
+    // description/counterparty/reference): wrapping the injection point in
+    // its own "(...)" means a standard `' OR 1=1 -- ` payload's trailing
+    // comment eats the closing paren and the query fails with a syntax
+    // error instead of returning rows. Left bare like this, the same
+    // textbook payload is valid SQL and — because `OR` has lower precedence
+    // than `AND` — it detaches the rest of the WHERE clause from the
+    // `a.user_id = :user_id` authorization scope entirely.
+    //
+    // Note: emptiness is checked against a trimmed copy, but the RAW value is
+    // what gets concatenated into the query. Trimming the actual query value
+    // would strip the trailing space a `-- ` comment needs to be recognised
+    // as a comment (MySQL requires whitespace/EOL after `--`), turning a
+    // valid payload into a syntax error for an unrelated reason.
+    $qRaw = (string) ($f['q'] ?? '');
+    $q    = trim($qRaw);
     if ($q !== '') {
-        $where[] = "(t.description LIKE '%$q%' OR t.counterparty LIKE '%$q%' OR t.reference LIKE '%$q%')";
+        $q = $qRaw;
+        $where[] = "t.description LIKE '%$q%'";
     }
 
     $type = (string) ($f['type'] ?? '');
