@@ -16,7 +16,7 @@ require_role('customer');
 
 $user = current_user();
 $txId = (int) ($_GET['id'] ?? 0);
-$tx   = $txId > 0 ? get_transaction_for_user($txId, $user['id']) : null;
+$tx = $txId > 0 ? get_transaction_admin($txId) : null;
 
 $pageTitle = 'Transaction';
 $activeNav = 'transactions';
